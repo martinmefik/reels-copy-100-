@@ -4,223 +4,225 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NewTok</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
 <style>
-body {
-    margin: 0;
-    background: black;
-    color: white;
-    font-family: Arial;
+:root {
+  --accent:#ff2d55;
+  --glass:rgba(255,255,255,.08);
 }
-.hidden { display:none }
-button,input {
-    width:100%;
-    padding:10px;
-    margin:5px 0;
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:#000;
+  color:#fff;
+  font-family:Inter,sans-serif;
+  overflow:hidden;
 }
-button { background:#ff0050; border:none; color:white }
-#feed { height:100vh }
-.video video { width:100%; height:100vh; object-fit:cover }
-.nav {
-    position:fixed; bottom:0; width:100%;
-    display:flex; justify-content:space-around;
-    background:#111; padding:10px;
+.hidden{display:none}
+
+/* VIDEO */
+#feed{height:100vh;position:relative}
+.video{position:absolute;width:100%;height:100%;animation:fade .25s}
+@keyframes fade{from{opacity:0;transform:scale(.98)}to{opacity:1}}
+video{width:100%;height:100%;object-fit:cover}
+
+/* OVERLAY */
+.left{position:absolute;bottom:90px;left:16px}
+.right{
+  position:absolute;bottom:90px;right:16px;
+  display:flex;flex-direction:column;gap:16px;align-items:center
 }
-.panel {
-    padding:15px;
+.action{
+  width:54px;height:54px;border-radius:50%;
+  background:var(--glass);
+  backdrop-filter:blur(12px);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;
+  transition:.2s;
 }
-.chat {
-    border-bottom:1px solid #333;
-    padding:10px;
-    cursor:pointer;
+.action:active{transform:scale(.9)}
+
+/* HEART */
+.heart{
+  position:absolute;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%) scale(0);
+  font-size:90px;
+  animation:heart .6s forwards;
 }
-.message {
-    margin:5px 0;
+@keyframes heart{
+  0%{transform:translate(-50%,-50%) scale(0);opacity:0}
+  50%{transform:translate(-50%,-50%) scale(1.4);opacity:1}
+  100%{transform:translate(-50%,-50%) scale(1);opacity:0}
 }
-.admin-item {
-    border-bottom:1px solid #444;
-    padding:8px;
+
+/* COMMENTS */
+#comments{
+  position:fixed;bottom:0;left:0;width:100%;height:65%;
+  background:#111;
+  border-radius:20px 20px 0 0;
+  animation:up .3s;
+  padding:16px;
 }
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+.comment{margin:8px 0;font-size:14px}
+.comment b{color:#ff2d55}
+
+/* NAV */
+.nav{
+  position:fixed;bottom:0;width:100%;
+  display:flex;justify-content:space-around;
+  background:rgba(0,0,0,.7);
+  backdrop-filter:blur(10px);
+  padding:12px
+}
+.nav button{background:none;color:white;border:none;font-size:14px}
 </style>
 </head>
 <body>
 
 <div id="auth">
-    <input id="login" placeholder="Ник">
-    <input id="password" type="password" placeholder="Пароль">
-    <button onclick="loginUser()">Войти</button>
-    <hr>
-    <input id="rlogin" placeholder="Ник">
-    <input id="rpass" type="password" placeholder="Пароль">
-    <button onclick="register()">Регистрация</button>
+  <input id="login" placeholder="Ник">
+  <input id="pass" type="password" placeholder="Пароль">
+  <button onclick="login()">Войти</button>
+  <input id="rlogin" placeholder="Регистрация">
+  <input id="rpass" type="password" placeholder="Пароль">
+  <button onclick="register()">Создать</button>
 </div>
 
 <div id="feed" class="hidden"></div>
 
-<div id="direct" class="panel hidden"></div>
-<div id="chat" class="panel hidden"></div>
-<div id="admin" class="panel hidden"></div>
+<div id="comments" class="hidden">
+  <h3>Комментарии</h3>
+  <div id="commentList"></div>
+  <input id="commentText" placeholder="Комментарий">
+  <button onclick="sendComment()">Отправить</button>
+</div>
 
 <div class="nav hidden" id="nav">
-    <button onclick="showFeed()">Лента</button>
-    <button onclick="uploadVideo()">+</button>
-    <button onclick="showDirect()">Direct</button>
-    <button onclick="showProfile()">Профиль</button>
+  <button onclick="upload()">＋</button>
+  <button onclick="logout()">Выйти</button>
 </div>
 
 <script>
-let users = JSON.parse(localStorage.getItem("users"))||{};
-let videos = JSON.parse(localStorage.getItem("videos"))||[];
-let chats = JSON.parse(localStorage.getItem("chats"))||{};
-let currentUser = localStorage.getItem("currentUser");
-let index = 0;
+let users=JSON.parse(localStorage.users||"{}");
+let videos=JSON.parse(localStorage.videos||"[]");
+let current=localStorage.current;
+let idx=0,lastTap=0;
 
-// admin
-if(!users["martin_mefik"]) {
-    users["martin_mefik"]={password:"martin_mefik1234",role:"admin"};
-    save();
+if(!users.martin_mefik){
+  users.martin_mefik={p:"martin_mefik1234"};
+  save();
 }
 
 function save(){
-    localStorage.setItem("users",JSON.stringify(users));
-    localStorage.setItem("videos",JSON.stringify(videos));
-    localStorage.setItem("chats",JSON.stringify(chats));
+  localStorage.users=JSON.stringify(users);
+  localStorage.videos=JSON.stringify(videos);
 }
 
-function loginUser(){
-    if(users[login.value]?.password===password.value){
-        currentUser=login.value;
-        localStorage.setItem("currentUser",currentUser);
-        start();
-    } else alert("Ошибка");
+function login(){
+  if(users[login.value]?.p===pass.value){
+    current=login.value;
+    localStorage.current=current;
+    start();
+  }else alert("Ошибка");
 }
 
 function register(){
-    if(users[rlogin.value]) return alert("Ник занят");
-    users[rlogin.value]={password:rpass.value,role:"user"};
-    save(); alert("Создано");
+  if(users[rlogin.value])return alert("Занято");
+  users[rlogin.value]={p:rpass.value};
+  save();alert("Ок");
 }
 
 function start(){
-    auth.classList.add("hidden");
-    feed.classList.remove("hidden");
-    nav.classList.remove("hidden");
-    showFeed();
+  auth.classList.add("hidden");
+  feed.classList.remove("hidden");
+  nav.classList.remove("hidden");
+  show();
 }
 
-function showFeed(){
-    hideAll();
-    feed.classList.remove("hidden");
-    feed.innerHTML="";
-    if(!videos[index]) index=0;
-    let v=videos[index];
-    if(!v) return;
-    feed.innerHTML=`
-    <div class="video">
-        <video src="${v.src}" autoplay loop muted></video>
-        <div>@${v.user}</div>
-    </div>`;
+function show(){
+  feed.innerHTML="";
+  if(!videos[idx])idx=0;
+  let v=videos[idx];
+  if(!v)return;
+  feed.innerHTML=`
+  <div class="video">
+    <video src="${v.src}" autoplay loop muted></video>
+    <div class="left">@${v.user}</div>
+    <div class="right">
+      <div class="action" onclick="like()">❤️ ${v.likes}</div>
+      <div class="action" onclick="openComments()">💬</div>
+    </div>
+  </div>`;
 }
 
-function uploadVideo(){
-    let i=document.createElement("input");
-    i.type="file"; i.accept="video/*";
-    i.onchange=e=>{
-        let url=URL.createObjectURL(e.target.files[0]);
-        videos.push({id:Date.now(),user:currentUser,src:url});
-        save(); showFeed();
-    };
-    i.click();
+feed?.addEventListener("touchend",e=>{
+  let now=Date.now();
+  if(now-lastTap<300){like(true)}
+  lastTap=now;
+});
+
+function like(double=false){
+  videos[idx].likes++;
+  save();show();
+  if(double){
+    let h=document.createElement("div");
+    h.className="heart";h.innerText="❤️";
+    feed.appendChild(h);
+    setTimeout(()=>h.remove(),600);
+  }
 }
 
-// SWIPE
 let sy=0;
 document.addEventListener("touchstart",e=>sy=e.touches[0].clientY);
 document.addEventListener("touchend",e=>{
-    if(sy-e.changedTouches[0].clientY>50){
-        index++; showFeed();
-    }
+  if(sy-e.changedTouches[0].clientY>60){
+    idx++;show();
+  }
 });
 
-// DIRECT
-function showDirect(){
-    hideAll();
-    direct.classList.remove("hidden");
-    direct.innerHTML="<h3>Чаты</h3>";
-    Object.keys(chats).forEach(k=>{
-        if(k.includes(currentUser)){
-            let u=k.replace(currentUser,"").replace("_","");
-            direct.innerHTML+=`<div class="chat" onclick="openChat('${u}')">${u}</div>`;
-        }
+function upload(){
+  let i=document.createElement("input");
+  i.type="file";i.accept="video/*";
+  i.onchange=e=>{
+    videos.unshift({
+      src:URL.createObjectURL(e.target.files[0]),
+      user:current,
+      likes:0,
+      comments:[]
     });
-    direct.innerHTML+=`
-    <input id="newChat" placeholder="Написать пользователю">
-    <button onclick="openChat(newChat.value)">Открыть</button>`;
+    save();show();
+  };
+  i.click();
 }
 
-function openChat(user){
-    if(!users[user]) return alert("Нет пользователя");
-    hideAll();
-    chat.classList.remove("hidden");
-    let key=[currentUser,user].sort().join("_");
-    chats[key]=chats[key]||[];
-    chat.innerHTML=`<h3>${user}</h3>`;
-    chats[key].forEach(m=>{
-        chat.innerHTML+=`<div class="message"><b>${m.from}:</b> ${m.text}</div>`;
-    });
-    chat.innerHTML+=`
-    <input id="msg">
-    <button onclick="sendMsg('${key}','${user}')">Отправить</button>`;
+function openComments(){
+  comments.classList.remove("hidden");
+  renderComments();
 }
 
-function sendMsg(key,user){
-    chats[key].push({from:currentUser,text:msg.value});
-    save(); openChat(user);
+function renderComments(){
+  commentList.innerHTML="";
+  videos[idx].comments.forEach(c=>{
+    commentList.innerHTML+=`<div class="comment"><b>@${c.u}</b> ${c.t}</div>`;
+  });
 }
 
-// PROFILE / ADMIN
-function showProfile(){
-    if(users[currentUser].role==="admin") showAdmin();
-    else alert("Пользователь: "+currentUser);
+function sendComment(){
+  videos[idx].comments.push({u:current,t:commentText.value});
+  commentText.value="";
+  save();renderComments();
 }
 
-function showAdmin(){
-    hideAll();
-    admin.classList.remove("hidden");
-    admin.innerHTML="<h2>Админ-панель</h2><h3>Пользователи</h3>";
-    Object.keys(users).forEach(u=>{
-        admin.innerHTML+=`
-        <div class="admin-item">${u}
-        ${u!=="martin_mefik"?
-        `<button onclick="deleteUser('${u}')">Удалить</button>`:""}
-        </div>`;
-    });
-    admin.innerHTML+="<h3>Видео</h3>";
-    videos.forEach(v=>{
-        admin.innerHTML+=`
-        <div class="admin-item">@${v.user}
-        <button onclick="deleteVideo(${v.id})">Удалить видео</button>
-        </div>`;
-    });
+function logout(){
+  localStorage.removeItem("current");
+  location.reload();
 }
 
-function deleteUser(u){
-    delete users[u];
-    videos=videos.filter(v=>v.user!==u);
-    save(); showAdmin();
-}
-function deleteVideo(id){
-    videos=videos.filter(v=>v.id!==id);
-    save(); showAdmin();
-}
-
-function hideAll(){
-    feed.classList.add("hidden");
-    direct.classList.add("hidden");
-    chat.classList.add("hidden");
-    admin.classList.add("hidden");
-}
-
-if(currentUser) start();
+if(current)start();
 </script>
 </body>
 </html>
